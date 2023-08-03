@@ -11,3 +11,5 @@
 <p></p>
 <p>2. Bikeshare SQL - Final</p>
 <p>In both .sql and .txt, highlights some key queries used to organize and explore datasets</p>
+<p>3. Bluebike Presentation</p>
+<p>Presentation Slides for SQL project that summarizes context, main findings, and next steps for the Tableau portion of the project</p>
