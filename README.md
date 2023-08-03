@@ -8,5 +8,6 @@
 <p>1. Bikeshare Activity Animation</p>
 <p>Built animation of rider activty over time using PostgreSQL and QGIS</p>
 <p></p>
+<p></p>
 <p>2. Bikeshare SQL - Final</p>
 <p>In both .sql and .txt, highlights some key queries used to organize and explore datasets</p>
