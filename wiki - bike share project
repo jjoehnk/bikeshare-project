@@ -1,0 +1,180 @@
+wiki - bike share project
+
+# Table of Contents
+
+1. Data Dictionary
+2. Bluebike Data Exploration and Clean
+3. QGIS Spatial Data Mapping
+
+
+
+
+# Data Dictionary
+
+A. Bluebike dataset
+
+## bbrides
+1. bike_id --> integer
+	a. links unique code to each rideshare bike
+2. start_time --> timestamp without timezone
+	a. date and time that a specific ride started
+3. end_time --> timestamp without timezone
+	a. date and time that a specific ride ended
+4. start_station_id --> integer
+	a. unique identifier linked to bike stations, shows which station the bike was picked up from 
+5. end_station_id --> integer
+	a. unique identifier linked to bike stations, shows which station the bike was dropped off at
+6. user_type --> text
+	a. whether the rider of the specific ride was a customer or subscriber 
+	b. customers pay up front and ad hoc to each ride, subscribers pay for passes of various increments for longer time-frames of use
+7. user_birth_year --> text
+	a. self-reported birth year of rider
+	b. field no longer recorded in 2020 onward
+9. covid_classification --> text
+	a. categorizes time period as of the following: 
+		i. pre-covid: before 3/10/2020 
+		ii. covid: between 3/10/2020 and 6/21/2021 (state of emergency in MA active)
+		ii. post-covid: after 6/21/2021
+
+## stations_all
+1. new_id --> text
+	a. unique id for each bike station 
+	b. introduced in April 2023
+2. id --> integer
+	a. unique id for each bike station
+	b. retired in April 2023, but correlates to all transactional ride data before that date
+3. station_name --> text
+	a. station name/description of location
+4. district --> text
+	a. station area 
+5. deployment_year --> numeric
+	a. year station was created
+6. total_docks --> integer
+	a. number of available spaces at station for bikes to dock
+7. latitude --> numeric
+	a. location of station
+8. longitude --> numeric 
+	a. location of station
+9. geom --> geometry
+	a. latitude and longitude of stations converted into geometry data type (point shape)
+
+## bike_facilities
+1. id --> integer
+	a. unique id for each bike facility
+2. geom --> geometry
+	a. latitude and longitude of bike facilities converted into geometry data type (line shape)
+3. fac_type --> integer
+	a. categorization of type of bike facility
+4. open_date --> character varying
+	a. month, season, or year the bike lane was open to the public
+
+## crashes
+1. dispatch_time --> timestamp without a timezone 
+	a. the moment a dispatch was contacted (does not represent the exact time of the accident)
+2. mode_type --> text
+	a. describes if the crash was a motor vehicle, pedestrian, or bicycle crash
+3. geom --> geometry
+	a. latitude and longitude of crashes converted into geometry data type (point shape)
+4. incident_ref --> text
+	a. unique identifier for each crash
+
+# Data Exploration and Clean
+
+
+1. Pulled summary statistics for bluebike tables from 2018 to 2023 
+
+2. Created a view of all bluebike years called bluebikerides for year-by-year comparisons, adding a column for covid classification based on date of ride (pre-covid before 3/10/2022 and post covid on and after)
+
+3. Pulled summary statistics for pre-covid and post-covid eras of rides
+
+4. Calculated correlation coefficient for the number of bike rides to daily covid cases, emergency visits, and hospitalizations. Average to no correlation found. 
+
+5. Pulled queries for bike rides over the years and covid data over time into Power BI for visualization and better conceptualization of trends over time. Lack of correlation around specific covid cases, but general drop in bike rides that transitioned into era of even more bike rides than in pre-covid suggest need for alternative variables to understand growth in market. 
+
+6. Explored station ids and relationship between reference table and station ids for each year, discovered that id system had changed and further cleaning needs to be done in order to link the two tables
+
+7. Pulled in additional data table from raw bluebike data containing station_id, name, latitude, and longitude from trip data as a new referential table
+
+8. Joined two referential station tables to find out alignment and details of missing stations from either side
+
+9. Joined referential station tables based on name and found all matched, apart from selection of new ones deployed in 2023
+
+10. Created view ref_station, exported data, and then re-imported as table
+
+11. Imported fatal crash data in Boston into pgadmin for exploratory analysis
+
+12. 
+
+# QGIS Spatial Data Mapping
+
+1. Executed following queries to create a geometry column of lat/longs as point: 
+
+ALTER TABLE ref_station
+ADD COLUMN geom geometry(point,4326);
+
+UPDATE ref_station
+SET geom = ST_SetSRID(ST_MakePoint(longitude,latitude),4326);
+
+
+2. Found GIS data on bike lanes and street segments in Boston. 
+
+3. Linked sql database server to qgis application to create vector visuals from geom data.
+
+4. Updated view query as follows: 
+
+CREATE VIEW rides_geometry AS
+SELECT
+	t1.ride_id,
+	t1.bike_id,
+	t1.covid_classification,
+	t1.user_type,
+	t1.start_station_id,
+	t1.start_time,
+	stst.geom starting_geom,
+	t1.end_station_id,
+	t1.end_time,
+	endst.geom ending_geom
+FROM (
+SELECT
+	row_number() OVER (ORDER BY bike_id) as ride_id,
+	bb.bike_id,
+	bb.covid_classification,
+	bb.user_type,
+	bb.start_station_id,
+	bb.start_time,
+	bb.end_station_id,
+	bb.end_time
+FROM bbrides bb) t1
+	JOIN stations_all stst ON t1.start_station_id = stst.id 
+	JOIN stations_all endst ON t1.end_station_id = endst.id;
+
+
+to give each ride it's own unique identifier and link geoms instead of lat and lat. 
+
+5. Seeing the size of the data and inability to load accurately into application, created view with rides grouped into years-months by starting station + count of rides as follows: 
+
+
+ SELECT row_number() OVER (ORDER BY t1.ride_yr, t1.ride_mth, t1.starting_geom) + 13208207 AS date_station_id,
+    (((('1'::text || '-'::text) || t1.ride_mth) || '-'::text) || t1.ride_yr)::date AS date,
+    t1.starting_geom,
+    t1.ride_qty
+   FROM ( SELECT date_part('year'::text, rides_geometry.start_time) AS ride_yr,
+            date_part('month'::text, rides_geometry.start_time) AS ride_mth,
+            rides_geometry.starting_geom,
+            count(rides_geometry.bike_id) AS ride_qty
+           FROM rides_geometry
+          GROUP BY (date_part('year'::text, rides_geometry.start_time)), (date_part('month'::text, rides_geometry.start_time)), rides_geometry.starting_geom
+          ORDER BY (date_part('year'::text, rides_geometry.start_time)), (date_part('month'::text, rides_geometry.start_time))) t1
+  ORDER BY (row_number() OVER (ORDER BY t1.ride_yr, t1.ride_mth, t1.starting_geom) + 13208207);
+
+6. Imported table into qgis with boston shape data, open space data, and rides as grouped by query above. 
+
+7. Used rule-based labelling with temporal controller to see the change in ride density over time. 
+
+8. Set up graduated layer on bike rides with standard deviation mode, where ride_qty is the calculated value. 
+
+9. Set up dynamic temporal control based on date field over 6 years, played month by month. 
+
+10. Added decoration title card using the following expression: [%format_date(@map_start_time,'MMM-yyyy')%]
+
+11. Created additional map for bike lanes/crashes/stations
