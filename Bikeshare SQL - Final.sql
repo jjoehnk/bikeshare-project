@@ -1,0 +1,212 @@
+---- Bluebike SQL Mini Project ----
+
+/*
+Table of Contents
+1.Table Set-Up and Maintenance 
+2.Exploratory/Analysis Queries
+    A. Bluebikes
+    B. Fatal Crashes
+    C. Covid
+*/
+
+
+-- # Table Set-Up and Maintenance
+        -- examples of queries to set up data for further analysis or for use in QGIS
+
+
+-- View of unioned bluebike tables for multi-year queries
+CREATE VIEW bbrides AS
+
+SELECT bike_id, start_time, end_time, start_station_id, end_station_id, user_type, 'pre-covid' as covid_classification
+	FROM bluebike2018
+UNION ALL
+SELECT bike_id, start_time, end_time, start_station_id, end_station_id, user_type, 'pre-covid' as covid_classification
+	FROM bluebike2019
+UNION ALL
+SELECT bike_id, start_time, end_time, start_station_id, end_station_id, user_type,
+	CASE
+		WHEN start_time < '2020-03-10'::timestamp THEN 'pre_covid'
+        ELSE 'covid'
+	END AS covid_classification
+	FROM bluebike2020
+UNION ALL
+SELECT bike_id, start_time, end_time, start_station_id, end_station_id, user_type,
+	CASE
+		WHEN start_time < '2021-06-21'::timestamp THEN 'covid'
+        ELSE 'post-covid'
+	END AS covid_classification
+	FROM bluebike2021
+UNION ALL
+SELECT bike_id, start_time, end_time, start_station_id, end_station_id, user_type, 'post-covid' as covid_classification
+	FROM bluebike2022
+UNION ALL
+SELECT bike_id, start_time, end_time, start_station_id, end_station_id, user_type, 'post-covid' as covid_classification
+	FROM bluebike2023;
+
+
+-- View that joins lat/long and old station id information with new station id, total docks, and deployment year
+CREATE VIEW ref_station AS
+SELECT
+	n.station_id new_id,
+	o.id id,
+	n.name station_name,
+	n.district,
+	n.deployment_year,
+	n.latitude,
+	n.longitude
+FROM station n
+	LEFT JOIN old_station o on o.name = n.name;
+
+
+-- Creating a geometry column for bluebike stations
+ALTER TABLE stations_all
+ADD COLUMN geom geometry(point,4326);
+
+UPDATE stations_all
+SET geom = ST_SetSRID(ST_MakePoint(longitude,latitude),4326);
+
+
+--  updated SRID for bike_facilities and crashes to confirm they were set as the same SRID
+    -- also to troubleshoot other query and to see if 0 (better for geometry), 4326 (standard), 26986 (massachusetts) worked differently
+select UpdateGeometrySRID('public', 'crashes', 'geom', 4326) 
+
+
+
+-- # Exploratory/Analysis Queries
+-- selection of queries to pull data
+
+
+-- ## Bluebike Exploration
+
+-- user type breakdown post-covid
+SELECT 
+	count(bike_id),
+	user_type
+FROM bluebikerides
+WHERE covid_classification ilike 'post-covid'
+GROUP BY 2;
+	-- 1840066 customers
+	-- 5343911 subscribers 
+
+
+-- ride activity by year/covid era
+SELECT 
+	date_part('year', start_time) as year,
+	covid_classification,
+	count(bike_id) as qty_rides
+FROM bluebikerides
+GROUP BY 1,2
+ORDER BY 1,2 DESC
+/*
+"year"	"covid_classification"	"qty_rides"
+2018	"pre-covid"				1,767,806
+2019	"pre-covid"				2,522,537
+2020	"pre_covid"				313,114
+2020	"post_covid"			1,760,334
+2021	"post-covid"			2,934,377
+2022	"post-covid"			3,757,282
+2023	"post-covid"			492,318
+*/
+
+-- ## Fatal Crashes Exploration 
+
+-- breakdown by type of crash
+SELECT
+	mode_type,
+	count(mode_type) qty_incidents
+FROM crashes
+GROUP BY 1;
+/*
+"mode_type"	"qty_incidents"
+"mv"		22141
+"ped"		4399
+"bike"		2415
+*/
+
+-- bike crash by date
+SELECT
+	date_part('year', dispatch_time) crsh_yr,
+	date_part('month', dispatch_time) crsh_mth,
+	count(mode_type) qty_incidents
+FROM crashes
+WHERE mode_type ilike 'bike'
+GROUP BY 1,2
+ORDER BY 1,2;
+	--bike incidents decreasing year-over-year!!
+
+
+
+-- Query that pulls the quantity of rides for each station_id by year and month, with the corresponding geom
+CREATE VIEW rd_ct_date_geom AS -- added as view to connect results with QGIS
+SELECT
+	row_number() over (ORDER BY ride_yr,ride_mth,starting_geom) +13208207 date_station_id, -- **added unique identifier for each row to import into QGIS
+	ride_yr,                                                                               -- ignore the smashed keyboard 13208207, we don't need to talk about that 
+	ride_mth,
+	starting_geom,
+	ride_qty
+FROM (
+	SELECT 
+		date_part('year', start_time) ride_yr,
+		date_part('month', start_time) ride_mth,
+		starting_geom,
+		count(bike_id) ride_qty
+	FROM rides_geometry
+	GROUP BY 1,2,3
+	ORDER BY 1,2) t1
+ORDER BY 1;
+
+
+-- calculating the shortest distance between each bicycle crash and any bike lane point for crashes in 2018 and bike lanes opened on/before 2018 
+    -- if it worked, would have replicated for each year
+SELECT 
+	cr.incident_ref cr_id,  -- crash id
+	cr.geom cr_geom, -- crash geometry
+	b_id, -- bike facility id
+	b_geom, -- bike geometry
+	distance -- (???) shortest distance
+FROM crashes cr CROSS JOIN LATERAL (
+	SELECT
+		b.geom b_geom,
+		b.id b_id,
+		ST_DistanceSpheroid(b.geom, cr.geom) distance
+	FROM bike_facilities b
+	WHERE (b.open_date not ilike '%2019%' ---- their bike open date column is a mess of just years, mm/dd/yyyy, SEASON-yyyy, so I had to go for a quirky filter
+	or b.open_date not ilike '%2020%' 		--- yes now as I troubleshoot in part 2, I'll fix up this messy messy section 
+	or b.open_date not ilike '%2021%'
+	or b.open_date not ilike '%2022%'
+	or b.open_date not ilike '%2023%')
+	and date_part('year',cr.dispatch_time::date) = 2018
+	ORDER BY min(ST_Distance(b.geom, cr.geom))
+	LIMIT 1
+) calc
+ORDER BY 5 ASC;
+
+
+
+-- ## COVID
+
+----- calculating correlation coefficent between bike rides and covid numbers ----
+SELECT 
+	corr(qty_covid_cases,qty_rides) corr_cases_rides,
+	corr(qty_emergency_visits,qty_rides) corr_ev_rides,
+	corr(qty_hospitalizations,qty_rides) corr_hosp_rides
+FROM (
+	SELECT
+		cc.date cldr_date,
+		cc.new_covid_cases qty_covid_cases,
+		cev.emergency_department_visits qty_emergency_visits,
+		round(ch.hospitalizations,0) qty_hospitalizations,
+		count(bb.bike_id) qty_rides
+		FROM bbrides bb
+		JOIN covid_cases cc
+			ON bb.start_time::date = cc.date
+		JOIN covid_emergency_visits cev
+			ON bb.start_time::date = cev.date
+		JOIN covid_hospitalizations ch
+			ON bb.start_time::date = ch.date
+		GROUP BY 1,2,3,4
+		ORDER BY 1) as t1;		
+/*
+"corr_cases_rides"			"corr_ev_rides"				"corr_hosp_rides"
+-0.24154979964259726		-0.09308436694078108		-0.44246926674527326
+*/
