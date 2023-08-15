@@ -45,7 +45,7 @@ SELECT bike_id, start_time, end_time, start_station_id, end_station_id, user_typ
 
 
 -- View that joins lat/long and old station id information with new station id, total docks, and deployment year
-CREATE VIEW ref_station AS
+CREATE VIEW stations_all AS
 SELECT
 	n.station_id new_id,
 	o.id id,
@@ -60,15 +60,15 @@ FROM station n
 
 -- Creating a geometry column for bluebike stations
 ALTER TABLE stations_all
-ADD COLUMN geom geometry(point,4326);
+ADD COLUMN geom geometry(point,26986);
 
 UPDATE stations_all
-SET geom = ST_SetSRID(ST_MakePoint(longitude,latitude),4326);
+SET geom = ST_SetSRID(ST_MakePoint(longitude,latitude),26986);
 
 
 --  updated SRID for bike_facilities and crashes to confirm they were set as the same SRID
     -- also to troubleshoot other query and to see if 0 (better for geometry), 4326 (standard), 26986 (massachusetts) worked differently
-select UpdateGeometrySRID('public', 'crashes', 'geom', 4326) 
+select UpdateGeometrySRID('public', 'bike_facilities', 'geom', 26986) 
 
 
 

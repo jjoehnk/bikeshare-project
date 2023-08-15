@@ -6,7 +6,7 @@ Project exploring the Boston-based rideshare company BLUEBikes using their open 
 #### Links
 
 <a href="https://public.tableau.com/app/profile/jonas.joehnk/viz/BicycleInfrastructureandRiderActivitywithBluebikes/BLUEbikesPresentation">Tableau Public Presentation</a>
-<a href=>
+<a href="https://medium.com/@jonasjoehnk94/spatial-analysis-of-bike-infrastructure-and-rider-activity-in-boston-d3afff101d8d">Medium Article</a>
 
 #### Table of Contents
 
@@ -15,7 +15,7 @@ Project exploring the Boston-based rideshare company BLUEBikes using their open 
     <li>Bikeshare Activity Animation - built animation of rider activty over time using PostgreSQL and QGIS</li>
     <li>Bikeshare SQL - Final - in both .sql and .txt, highlights some key queries used to organize and explore datasets</li>
     <li>Bluebike SQL Presentation - presentation slides for SQL project that summarizes context, main findings, and next steps for the Tableau portion of the project</li>
-    <li>Wiki - bike share project - summary of steps taken for sql portion of project</p>
+    <li>Wiki - bike share project - summary of steps taken for sql portion of project</li>
     <li>Bikeshare Final Tableau Workbook - tbw file of tableau work</li>
 </ol>
 
