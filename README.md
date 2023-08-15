@@ -5,8 +5,8 @@ Project exploring the Boston-based rideshare company BLUEBikes using their open 
 
 #### Links
 
-<a href="https://public.tableau.com/app/profile/jonas.joehnk/viz/BicycleInfrastructureandRiderActivitywithBluebikes/BLUEbikesPresentation">Tableau Public Presentation</a>
-<a href="https://medium.com/@jonasjoehnk94/spatial-analysis-of-bike-infrastructure-and-rider-activity-in-boston-d3afff101d8d">Medium Article</a>
+<p><a href="https://public.tableau.com/app/profile/jonas.joehnk/viz/BicycleInfrastructureandRiderActivitywithBluebikes/BLUEbikesPresentation">Tableau Public Presentation</a></p>
+<p></p><a href="https://medium.com/@jonasjoehnk94/spatial-analysis-of-bike-infrastructure-and-rider-activity-in-boston-d3afff101d8d">Medium Article</a></p>
 
 #### Table of Contents
 
